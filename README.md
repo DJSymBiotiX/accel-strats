@@ -3,6 +3,12 @@ accel-strats
 
 Use the LIS3DH breakout board to detect acceleration and write it out to a file
 
+Attribution
+===========
+
+ * LIS3DH.py - https://github.com/mattdy/python-lis3dh
+ * Adafruit\_I2C - https://github.com/adafruit/Adafruit-Raspberry-Pi-Python-Code
+
 Setup
 =====
 
