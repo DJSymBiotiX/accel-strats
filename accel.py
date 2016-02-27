@@ -4,17 +4,99 @@ import RPi.GPIO as GPIO
 import time
 import struct
 import argparse
+import signal
 
 from libchip.LIS3DH import LIS3DH
 from datetime import datetime
-from os import remove
-from sys import exit
+from os import remove, stat, kill, getpid, path
+from sys import exit, stdout
+from threading import Event
 
-# Setup GPIO Mode
-GPIO.setmode(GPIO.BCM)
+from mailhelper import mail
+from graph import make_graph
 
-# Get GPIO Switch pin position
-SWITCH = 18
+
+from settings import (
+    GPIO_MODE_BOARD,
+    SWITCH,
+    STATUS_LED,
+    NOTIFY_EMAIL,
+    DATA_DIRECTORY,
+)
+
+class Globals:
+    State = False
+    SwitchState = False
+
+
+def output_state():
+    if STATUS_LED is None:
+        return
+    if Globals.State:
+        GPIO.output(STATUS_LED, GPIO.HIGH)
+        print
+        print "Samping is: on"
+    else:
+        GPIO.output(STATUS_LED, GPIO.LOW)
+        print
+        print "Samping is: off"
+
+def switch_down(pin):
+    # Interrupt handling routine for when the switch is pressed,
+    # sends SIGUSR1 to the process which allows it to wake up from the
+    # earlier sleep (signal.pause).
+    # This is awkward but seems to be necessary to keep KeyboardInterrupts
+    # working when using interrupt and a non polling approach with RPi GPIO
+    kill(getpid(), signal.SIGUSR1)
+
+def toggle_state(signal, frame):
+    # Do the state transition after  SIGUSR1 comes in
+    Globals.State = not Globals.State
+    output_state()
+
+def take_sample(f, sensor):
+    x = sensor.getX()
+    y = sensor.getY()
+    z = sensor.getZ()
+    s = struct.pack('f' * 3, *(x, y, z))
+    f.write(s)
+
+
+def take_samples(sensor):
+    sample_count = 0
+    filename = 'data-%s.bin' % datetime.now().strftime("%Y%m%d-%H%M%S")
+    filepath = path.join(DATA_DIRECTORY, filename)
+    print "Trying to collect samples in %s:" % filename
+    with open(filepath, 'wb') as f:
+        while Globals.State:
+            take_sample(f, sensor)
+            sample_count += 1
+            if sample_count % 100 == 0:
+                stdout.write(".")
+                stdout.flush()
+            time.sleep(0.01)
+        print
+
+    # If the file is empty, delete it
+    samples = stat(filepath).st_size / 4
+    print
+    if samples == 0:
+        print "No data collected"
+        remove(filepath)
+    else:
+        print "Wrote out %d samples to %s" % (samples, filename)
+        pngpath = filepath[:-3] + 'png'
+        print "Making %s" % pngpath,
+        make_graph(filepath, pngpath)
+        print "Done"
+        print "Sending mail to %s.." % NOTIFY_EMAIL,
+        mail(
+            NOTIFY_EMAIL,
+            "Report - %s" % filename,
+            "Got %d samples for file %s" % (samples, filename),
+            attach=filepath, image=pngpath
+        )
+        print "Done"
 
 
 def main():
@@ -23,49 +105,40 @@ def main():
 
     print "LIS3DH Accelerometer Sampling"
     print "Sampling is on when switch is flipped"
-
-    # Setup
-    GPIO.setup(SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    print
 
     sensor = LIS3DH(debug=debug)
-    sample_count = 0
-    state = True
+    signal.signal(signal.SIGUSR1, toggle_state)
 
-    print
-    filename = 'data-%s.bin' % datetime.now().strftime("%H%M%S")
-
-    with open(filename, 'wb') as f:
-        try:
-            while 1:
-                switch_state = GPIO.input(SWITCH)
-                if state != switch_state:
-                    state = switch_state
-                    if state:
-                        print "Sampling is: On"
-                    else:
-                        print "Sampling is: Off"
-
-                if switch_state:
-                    x = sensor.getX()
-                    y = sensor.getY()
-                    z = sensor.getZ()
-                    s = struct.pack('f' * 3, *(x, y, z))
-                    f.write(s)
-                    sample_count += 3
-
-                time.sleep(0.01)
-        except KeyboardInterrupt:
-            pass
-
-    # If sample count is 0 delete the empty file
-    print
-    if sample_count == 0:
-        remove(filename)
-        print "No data collected"
+    if GPIO_MODE_BOARD:
+        GPIO.setmode(GPIO.BOARD)
     else:
-        print "Wrote out file: %s" % filename
+        GPIO.setmode(GPIO.BCM)
 
-    GPIO.cleanup()
+    try:
+        # Setup
+        GPIO.setup(SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+        if STATUS_LED is not None:
+            GPIO.setup(STATUS_LED, GPIO.OUT, initial=GPIO.LOW)
+
+
+        GPIO.add_event_detect(SWITCH, GPIO.RISING, callback=switch_down,
+                bouncetime=1000)
+
+        while 1:
+            print "Waiting for button press"
+            signal.pause()
+            print "Button pressed, activating"
+            take_samples(sensor)
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        GPIO.cleanup()
+
+    print "Done"
+
     exit(0)
 
 

@@ -1,2 +1,4 @@
 *.pyc
 *.bin
+*.png
+settings.py
