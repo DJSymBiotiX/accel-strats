@@ -96,6 +96,15 @@ def take_samples(sensor):
             "Got %d samples for file %s" % (samples, filename),
             attach=filepath, image=pngpath
         )
+        if STATUS_LED is not None:
+            print "Blinking status LED",
+            for i in range(3):
+                GPIO.output(STATUS_LED, GPIO.HIGH)
+                time.sleep(0.2)
+                print ".",
+                GPIO.output(STATUS_LED, GPIO.LOW)
+                time.sleep(0.2)
+            print "."
         print "Done"
 
 
