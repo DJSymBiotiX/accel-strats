@@ -38,15 +38,15 @@ def make_graph(source_path, dest_path):
     plt.title("Getting Ripped")
     plt.grid(True)
     plt.savefig(dest_path)
-    return plt
+    plt.clf()
+    plt.close('all')
 
 
 def main():
     args = parse_args()
     filepath = args.filepath
 
-    plt = make_graph(filepath, "test.png")
-    plt.show()
+    make_graph(filepath, "test.png")
 
     exit(0)
 
