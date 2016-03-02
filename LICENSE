@@ -2,7 +2,7 @@ The MIT License (MIT)
 
 LIS3DH.py Copyright (c) 2016 Matt Dyson
 Adafruit_I2C.py Copyright (c) 2012-2013 Limor Fried, Kevin Townsend and Mikey Sklar for Adafruit Industries. All rights reserved.
-Other Work Copyright (c) 2016 Fernando Chorney
+Other Work Copyright (c) 2016 Fernando Chorney and Josh Jaques
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
