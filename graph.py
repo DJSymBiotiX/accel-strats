@@ -29,7 +29,15 @@ def make_graph(source_path, dest_path):
             y_data.append(chunk[1])
             z_data.append(chunk[2])
 
-    t = np.arange(0.0, seconds, 0.01)
+    t, step_size = np.linspace(0.0, seconds, num=len(x_data), retstep=True)
+
+    print "File Size: %s" % filesize
+    print "Total Sample Count: %s" % sample_count
+    print "Seconds: %s" % seconds
+    print "Samples Per Axis: %s" % len(x_data)
+    print "T: %s" % len(t)
+    print "Step Size: %s" % step_size
+
     plt.xlim(0, seconds)
     plt.plot(t, x_data, t, y_data, t, z_data)
 
